@@ -1,0 +1,29 @@
+# Data & Database
+data/
+*.db
+
+# Nanobot runtime (auto-generated)
+memory/
+sessions/
+cron/
+HEARTBEAT.md
+USER.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env

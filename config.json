@@ -1,0 +1,61 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.nanobot/workspace",
+      "model": "YOUR_MODEL_NAME",
+      "provider": "custom",
+      "maxTokens": 4096,
+      "temperature": 0.3,
+      "timezone": "Asia/Shanghai",
+      "botName": "Nexus客服",
+      "botIcon": "💬"
+    }
+  },
+  "channels": {
+    "sendProgress": true,
+    "sendToolHints": false,
+    "showReasoning": false,
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_TELEGRAM_BOT_TOKEN",
+      "mode": "polling",
+      "allowFrom": ["*"],
+      "replyToMessage": true,
+      "inlineKeyboards": true
+    },
+    "feishu": {
+      "enabled": false,
+      "appId": "",
+      "appSecret": ""
+    },
+    "dingtalk": {
+      "enabled": false,
+      "appKey": "",
+      "appSecret": ""
+    }
+  },
+  "providers": {
+    "custom": {
+      "apiKey": "YOUR_MIMO_API_KEY",
+      "apiBase": "YOUR_API_BASE_URL",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null
+    },
+    "anthropic": {
+      "apiKey": ""
+    },
+    "openrouter": {
+      "apiKey": ""
+    }
+  },
+  "tools": {
+    "mcp_servers": {
+      "ticket": {
+        "command": "python",
+        "args": ["mcp_servers/ticket_server.py"],
+        "cwd": "."
+      }
+    }
+  }
+}
