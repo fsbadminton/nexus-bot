@@ -37,6 +37,18 @@ nexus-bot/
 
 ## 快速开始
 
+### 0. 前置条件
+
+本项目基于 [Nanobot](https://github.com/HKUDS/nanobot) 运行，需先安装 Nanobot CLI：
+
+```bash
+git clone https://github.com/HKUDS/nanobot.git
+cd nanobot
+# 按照 nanobot 的 README 完成安装
+```
+
+安装完成后，确保 `nanobot` 命令可用。
+
 ### 1. 配置
 
 编辑 `config.json`，填入以下信息：
