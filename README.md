@@ -1,6 +1,6 @@
 # Nexus Bot
 
-基于 Nanobot 的多平台智能客服 Bot，支持飞书、Telegram、钉钉等平台，提供 FAQ 知识库查询和工单管理服务。
+基于 Nanobot 运行时的多平台智能客服 Bot 工作区，支持飞书、Telegram、钉钉等平台，提供 FAQ 知识库查询和工单管理服务。
 
 ## 功能特性
 
@@ -35,19 +35,26 @@ nexus-bot/
 └── data/                # 数据存储
 ```
 
+## 仓库定位
+
+这个仓库主要承载的是 `Nexus Bot` 的业务配置与知识资产，不包含 `Nanobot` 运行时本身。换句话说：
+
+- `Nanobot` 负责提供 `agent` / `gateway` 等通用运行能力
+- `nexus-bot` 负责提供客服人格、FAQ 知识库、Skill、MCP Server 和渠道配置
+
+因此，启动本项目前需要先让本机具备可用的 `nanobot` CLI，但不一定非要把 `nanobot` 源码 clone 到当前目录。
+
 ## 快速开始
 
 ### 0. 前置条件
 
-本项目基于 [Nanobot](https://github.com/HKUDS/nanobot) 运行，需先安装 Nanobot CLI：
+先准备好可用的 [Nanobot](https://github.com/HKUDS/nanobot) CLI 运行时。
 
 ```bash
-git clone https://github.com/HKUDS/nanobot.git
-cd nanobot
-# 按照 nanobot 的 README 完成安装
+nanobot --help
 ```
 
-安装完成后，确保 `nanobot` 命令可用。
+如果本机还没有 `nanobot` 命令，再按照 Nanobot 项目的安装说明完成安装。你可以使用源码 clone、包管理器或任何其他官方支持的安装方式；关键点是最后 `nanobot` 命令已经可用。
 
 ### 1. 配置
 
@@ -77,7 +84,7 @@ cd nanobot
 
 ### 2. 启动
 
-git clone 后，只需编辑项目根目录下的 `config.json`，填入自己的 API Key 即可运行。
+当 `nanobot` CLI 已可用后，只需编辑项目根目录下的 `config.json`，填入自己的 API Key 即可运行。
 
 **cli：**
 
