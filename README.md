@@ -1,13 +1,14 @@
 # Nexus Bot
 
-基于 Nanobot 运行时的多平台智能客服 Bot 工作区，支持飞书、Telegram、钉钉等平台，提供 FAQ 知识库查询和工单管理服务。
+基于 Nanobot 运行时的多平台智能客服 Bot 工作区，支持飞书、Telegram、钉钉等平台，提供 FAQ 知识库查询、工单管理和基础客服记忆能力。
 
 ## 功能特性
 
-- **FAQ 知识库**：覆盖通用问题、账户、计费、技术等常见问题，自动匹配最佳答案
-- **工单管理**：支持创建、查询、更新、关闭工单，全程追踪处理进度
-- **多平台接入**：同时支持 Telegram、飞书、钉钉，提供一致的客服体验
-- **智能对话**：温和专业的人格设定，自动处理常见问题，无法解决时转交人工
+- **FAQ 知识库**：覆盖通用问题、账户、计费、技术等常见问题，优先基于知识库回答
+- **工单管理**：支持创建、查询、更新、列出工单，全程追踪处理进度
+- **多平台接入**：预留 Telegram、飞书、钉钉渠道配置，提供一致的客服体验
+- **记忆与升级策略**：支持记录长期有用的用户画像与高频问题，并在必要时升级人工处理
+- **MCP 扩展能力**：通过本地 MCP Server 管理工单数据库
 
 ## 项目结构
 
@@ -37,10 +38,10 @@ nexus-bot/
 
 ## 仓库定位
 
-这个仓库主要承载的是 `Nexus Bot` 的业务配置与知识资产，不包含 `Nanobot` 运行时本身。换句话说：
+这个仓库主要承载 `Nexus Bot` 的业务配置与知识资产，不包含 `Nanobot` 运行时本身。换句话说：
 
 - `Nanobot` 负责提供 `agent` / `gateway` 等通用运行能力
-- `nexus-bot` 负责提供客服人格、FAQ 知识库、Skill、MCP Server 和渠道配置
+- `nexus-bot` 负责提供客服人格、FAQ 知识库、Skill、记忆模板、MCP Server 和渠道配置
 
 因此，启动本项目前需要先让本机具备可用的 `nanobot` CLI，但不一定非要把 `nanobot` 源码 clone 到当前目录。
 
@@ -48,17 +49,44 @@ nexus-bot/
 
 ### 0. 前置条件
 
-先准备好可用的 [Nanobot](https://github.com/HKUDS/nanobot) CLI 运行时。
+先准备好以下运行前提：
+
+- 可用的 [Nanobot](https://github.com/HKUDS/nanobot) CLI
+- `python3`
+- Python 依赖安装能力（用于 MCP Server）
 
 ```bash
 nanobot --help
+python3 --version
 ```
 
-如果本机还没有 `nanobot` 命令，再按照 Nanobot 项目的安装说明完成安装。你可以使用源码 clone、包管理器或任何其他官方支持的安装方式；关键点是最后 `nanobot` 命令已经可用。
+如果本机还没有 `nanobot` 命令，再按照 Nanobot 项目的安装说明完成安装。关键点是最终 `nanobot` 命令可用。
 
-### 1. 配置
+### 1. 安装依赖
 
-编辑 `config.json`，填入以下信息：
+先安装本仓库用到的 Python 依赖：
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+### 2. 配置
+
+复制环境变量模板，并填入实际值：
+
+```bash
+cp .env.example .env
+```
+
+需要重点配置：
+
+- `NEXUS_API_KEY`
+- `NEXUS_API_BASE`
+- `TELEGRAM_BOT_TOKEN`（如果启用 Telegram）
+- `FEISHU_APP_ID` / `FEISHU_APP_SECRET`（如果启用飞书）
+- `DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET`（如果启用钉钉）
+
+然后编辑 `config.json`，选择模型提供方并启用需要的平台。默认示例：
 
 ```json
 {
@@ -70,19 +98,20 @@ nanobot --help
   },
   "providers": {
     "custom": {
-      "apiKey": "YOUR_MIMO_API_KEY",
-      "apiBase": "YOUR_API_BASE_URL"
+      "apiKey": "${NEXUS_API_KEY}",
+      "apiBase": "${NEXUS_API_BASE}"
     }
   },
   "channels": {
     "telegram": {
-      "token": "YOUR_TELEGRAM_BOT_TOKEN"
+      "enabled": true,
+      "token": "${TELEGRAM_BOT_TOKEN}"
     }
   }
 }
 ```
 
-### 2. 启动
+### 3. 启动
 
 当 `nanobot` CLI 已可用后，只需编辑项目根目录下的 `config.json`，填入自己的 API Key 即可运行。
 
@@ -98,7 +127,21 @@ nanobot agent --config ./config.json
 nanobot gateway --config ./config.json
 ```
 
-### 3. 启用平台（可选）
+### 4. 验证
+
+建议至少做以下 smoke test：
+
+1. 启动 `agent` 模式，询问“这个机器人支持哪些平台？”
+2. 再询问“帮我创建一个工单”，确认工单号能成功返回
+3. 使用工单号继续查询一次状态
+
+如果工单相关能力异常，优先检查：
+
+- `python3` 是否可用
+- `requirements.txt` 是否已安装
+- `config.json` 中 `tools.mcpServers.ticket` 是否配置正确
+
+### 5. 启用平台（可选）
 
 在 `config.json` 的 `channels` 中启用需要的平台：
 
@@ -108,13 +151,15 @@ nanobot gateway --config ./config.json
 | 飞书 | `appId` / `appSecret` | 需手动启用 |
 | 钉钉 | `appKey` / `appSecret` | 需手动启用 |
 
-### 4. 自定义知识库
+### 6. 自定义知识库
 
 编辑 `knowledge/faq/` 目录下的 Markdown 文件，添加或更新 FAQ 条目。
 
-### 5. 自定义 Bot 行为
+### 7. 自定义 Bot 行为
 
 - **人格调整**：编辑 `SOUL.md` 修改语气、回复风格
+- **流程与升级规则**：编辑 `AGENTS.md`
+- **长期记忆模板**：编辑 `MEMORY.md` 与 `memory/MEMORY.md`
 - **能力扩展**：在 `skills/` 下添加新的 Skill
 - **定时任务**：在 `HEARTBEAT.md` 中添加周期性任务
 
@@ -126,4 +171,4 @@ open → in_progress → pending_user → resolved → closed
 
 ## 许可证
 
-MIT
+MIT，详见 [LICENSE](/Users/seabo/Desktop/项目/nexus-bot/LICENSE)。

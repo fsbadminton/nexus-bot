@@ -1,14 +1,16 @@
 {
   "agents": {
     "defaults": {
-      "workspace": "~/.nanobot/workspace",
+      "workspace": ".",
       "model": "YOUR_MODEL_NAME",
       "provider": "custom",
       "maxTokens": 4096,
       "temperature": 0.3,
       "timezone": "Asia/Shanghai",
       "botName": "Nexus客服",
-      "botIcon": "💬"
+      "botIcon": "💬",
+      "idleCompactAfterMinutes": 15,
+      "unifiedSession": false
     }
   },
   "channels": {
@@ -16,10 +18,9 @@
     "sendToolHints": false,
     "showReasoning": false,
     "telegram": {
-      "enabled": true,
-      "token": "YOUR_TELEGRAM_BOT_TOKEN",
+      "enabled": false,
+      "token": "",
       "mode": "polling",
-      "allowFrom": ["*"],
       "replyToMessage": true,
       "inlineKeyboards": true
     },
@@ -36,8 +37,8 @@
   },
   "providers": {
     "custom": {
-      "apiKey": "YOUR_MIMO_API_KEY",
-      "apiBase": "YOUR_API_BASE_URL",
+      "apiKey": "${NEXUS_API_KEY}",
+      "apiBase": "${NEXUS_API_BASE}",
       "apiType": "auto",
       "extraHeaders": null,
       "extraBody": null
@@ -50,11 +51,23 @@
     }
   },
   "tools": {
-    "mcp_servers": {
+    "restrictToWorkspace": true,
+    "exec": {
+      "enable": false,
+      "timeout": 30,
+      "pathAppend": ""
+    },
+    "mcpServers": {
       "ticket": {
-        "command": "python",
+        "command": "python3",
         "args": ["mcp_servers/ticket_server.py"],
-        "cwd": "."
+        "enabledTools": [
+          "create_ticket",
+          "query_ticket",
+          "update_ticket",
+          "list_tickets"
+        ],
+        "toolTimeout": 30
       }
     }
   }
