@@ -1,8 +1,8 @@
 {
   "agents": {
     "defaults": {
-      "workspace": ".",
-      "model": "YOUR_MODEL_NAME",
+      "workspace": "/Users/seabo/Desktop/项目/nexus-bot",
+      "model": "mimo-v2.5-pro",
       "provider": "custom",
       "maxTokens": 4096,
       "temperature": 0.3,
@@ -10,7 +10,10 @@
       "botName": "Nexus客服",
       "botIcon": "💬",
       "idleCompactAfterMinutes": 15,
-      "unifiedSession": false
+      "unifiedSession": false,
+      "dream": {
+        "enabled": false
+      }
     }
   },
   "channels": {
@@ -18,9 +21,10 @@
     "sendToolHints": false,
     "showReasoning": false,
     "telegram": {
-      "enabled": false,
-      "token": "",
+      "enabled": true,
+      "token": "${TELEGRAM_BOT_TOKEN}",
       "mode": "polling",
+      "allowFrom": ["7504241670"],
       "replyToMessage": true,
       "inlineKeyboards": true
     },
@@ -59,8 +63,8 @@
     },
     "mcpServers": {
       "ticket": {
-        "command": "python3",
-        "args": ["mcp_servers/ticket_server.py"],
+        "command": "/Users/seabo/Desktop/项目/nexus-bot/.venv/bin/python",
+        "args": ["/Users/seabo/Desktop/项目/nexus-bot/mcp_servers/ticket_server.py"],
         "enabledTools": [
           "create_ticket",
           "query_ticket",
@@ -69,6 +73,11 @@
         ],
         "toolTimeout": 30
       }
+    }
+  },
+  "gateway": {
+    "heartbeat": {
+      "enabled": false
     }
   }
 }
