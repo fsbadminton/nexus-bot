@@ -1,7 +1,7 @@
 {
   "agents": {
     "defaults": {
-      "workspace": "/Users/seabo/Desktop/项目/nexus-bot",
+      "workspace": ".",
       "model": "mimo-v2.5-pro",
       "provider": "custom",
       "maxTokens": 4096,
@@ -63,8 +63,8 @@
     },
     "mcpServers": {
       "ticket": {
-        "command": "/Users/seabo/Desktop/项目/nexus-bot/.venv/bin/python",
-        "args": ["/Users/seabo/Desktop/项目/nexus-bot/mcp_servers/ticket_server.py"],
+        "command": ".venv/bin/python",
+        "args": ["mcp_servers/ticket_server.py"],
         "enabledTools": [
           "create_ticket",
           "query_ticket",
