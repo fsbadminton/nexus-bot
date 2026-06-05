@@ -26,7 +26,11 @@
       "mode": "polling",
       "allowFrom": ["7504241670"],
       "replyToMessage": true,
-      "inlineKeyboards": true
+      "inlineKeyboards": false,
+      "streaming":false,
+      "reactEmoji": "",
+      "connectionPoolSize": 64,
+      "poolTimeout": 20
     },
     "feishu": {
       "enabled": false,
@@ -63,8 +67,8 @@
     },
     "mcpServers": {
       "ticket": {
-        "command": ".venv/bin/python",
-        "args": ["mcp_servers/ticket_server.py"],
+        "command": "${WORKSPACE}/.venv/bin/python",
+        "args": ["${WORKSPACE}/mcp_servers/ticket_server.py"],
         "enabledTools": [
           "create_ticket",
           "query_ticket",
