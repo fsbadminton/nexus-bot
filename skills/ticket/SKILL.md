@@ -23,8 +23,6 @@ metadata:
 
 ### `create_ticket`
 
-用于创建新工单。
-
 参数：
 - `title`：工单标题
 - `description`：问题详细描述
