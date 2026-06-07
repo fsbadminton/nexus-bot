@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 """
-message_router.py - 多平台消息统一路由模块
-
-这个模块不直接接管 Nanobot 的 channel 运行时，而是提供一层
-"平台原始消息 -> 统一消息语义对象" 的标准化能力，方便后续：
-
-1. 为不同平台消息补齐统一上下文
-2. 在进入 FAQ / 工单逻辑前做一致的预处理
-3. 将统一结构转换成适合发送给 Nanobot 的 prompt
+Normalize raw platform message payloads into a unified message object.
 """
 
 from __future__ import annotations
@@ -20,17 +13,14 @@ from typing import Any
 
 
 class Platform(str, Enum):
-    """支持的平台枚举。"""
-
     FEISHU = "feishu"
     DINGTALK = "dingtalk"
     TELEGRAM = "telegram"
+    QQ = "qq"
 
 
 @dataclass
 class UnifiedMessage:
-    """统一消息格式，用于抹平多平台消息结构差异。"""
-
     message_id: str
     platform: Platform
     user_id: str
@@ -41,23 +31,21 @@ class UnifiedMessage:
     attachments: list[dict[str, Any]] = field(default_factory=list)
 
     def to_prompt(self) -> str:
-        """转换为更适合交给 Nanobot 的标准化 prompt。"""
         lines = [
-            f"[来源: {self.platform.value}]",
-            f"[用户: {self.user_name}({self.user_id})]",
-            f"[消息ID: {self.message_id}]",
-            f"[时间: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}]",
+            f"[source: {self.platform.value}]",
+            f"[user: {self.user_name}({self.user_id})]",
+            f"[message_id: {self.message_id}]",
+            f"[time: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}]",
         ]
         if self.reply_to:
-            lines.append(f"[回复消息: {self.reply_to}]")
+            lines.append(f"[reply_to: {self.reply_to}]")
         if self.attachments:
-            lines.append(f"[附件数: {len(self.attachments)}]")
+            lines.append(f"[attachments: {len(self.attachments)}]")
         lines.append("")
-        lines.append(f"用户提问: {self.content}")
+        lines.append(f"user_message: {self.content}")
         return " ".join(lines[:4]) + ("\n" + "\n".join(lines[4:]) if len(lines) > 4 else "")
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为可序列化字典。"""
         payload = asdict(self)
         payload["platform"] = self.platform.value
         payload["timestamp"] = self.timestamp.isoformat()
@@ -65,11 +53,8 @@ class UnifiedMessage:
 
 
 class MessageRouter:
-    """多平台消息标准化路由器。"""
-
     @classmethod
     def route(cls, platform: str | Platform, payload: dict[str, Any]) -> UnifiedMessage | None:
-        """将指定平台的原始 payload 转为统一消息对象。"""
         platform_value = Platform(platform)
         if platform_value == Platform.FEISHU:
             return cls.from_feishu(payload)
@@ -77,18 +62,12 @@ class MessageRouter:
             return cls.from_dingtalk(payload)
         if platform_value == Platform.TELEGRAM:
             return cls.from_telegram(payload)
+        if platform_value == Platform.QQ:
+            return cls.from_qq(payload)
         raise ValueError(f"Unsupported platform: {platform}")
 
     @staticmethod
     def from_feishu(payload: dict[str, Any]) -> UnifiedMessage | None:
-        """
-        解析飞书 webhook 消息。
-
-        兼容：
-        - URL 验证请求
-        - 文本消息
-        - 带 message.content JSON 字符串的结构
-        """
         if payload.get("type") == "url_verification":
             return None
 
@@ -106,11 +85,7 @@ class MessageRouter:
             or sender.get("sender_id", {}).get("open_id")
             or "unknown"
         )
-        sender_name = (
-            sender.get("sender_name")
-            or sender.get("name")
-            or str(sender_id)
-        )
+        sender_name = sender.get("sender_name") or sender.get("name") or str(sender_id)
 
         return UnifiedMessage(
             message_id=str(message.get("message_id", "")),
@@ -127,7 +102,6 @@ class MessageRouter:
 
     @staticmethod
     def from_dingtalk(payload: dict[str, Any]) -> UnifiedMessage | None:
-        """解析钉钉 webhook 消息。"""
         text = str(payload.get("text", {}).get("content", "")).strip()
         if not text:
             return None
@@ -157,7 +131,6 @@ class MessageRouter:
 
     @staticmethod
     def from_telegram(payload: dict[str, Any]) -> UnifiedMessage | None:
-        """解析 Telegram webhook/update 消息。"""
         message = payload.get("message") or payload.get("edited_message") or {}
         text = str(message.get("text") or message.get("caption") or "").strip()
         if not text:
@@ -185,8 +158,47 @@ class MessageRouter:
         )
 
     @staticmethod
+    def from_qq(payload: dict[str, Any]) -> UnifiedMessage | None:
+        event_type = payload.get("t")
+        message = payload.get("d") if isinstance(payload.get("d"), dict) else payload
+        if not isinstance(message, dict):
+            return None
+
+        if not event_type:
+            event_type = MessageRouter._detect_qq_event_type(message)
+        if event_type not in {
+            "AT_MESSAGE_CREATE",
+            "DIRECT_MESSAGE_CREATE",
+            "MESSAGE_CREATE",
+            "GROUP_AT_MESSAGE_CREATE",
+            "C2C_MESSAGE_CREATE",
+        }:
+            return None
+
+        text = str(message.get("content", "")).strip()
+        if not text:
+            return None
+
+        author = message.get("author", {})
+        if not isinstance(author, dict):
+            author = {}
+
+        user_id = MessageRouter._qq_user_id(event_type, author)
+        user_name = MessageRouter._qq_user_name(author, user_id)
+
+        return UnifiedMessage(
+            message_id=str(message.get("id", "")),
+            platform=Platform.QQ,
+            user_id=user_id,
+            user_name=user_name,
+            content=text,
+            timestamp=MessageRouter._parse_timestamp(message.get("timestamp")),
+            reply_to=MessageRouter._qq_reply_to(message),
+            attachments=MessageRouter._extract_qq_attachments(message),
+        )
+
+    @staticmethod
     def _safe_json_loads(raw: str) -> dict[str, Any]:
-        """安全解析 JSON 字符串。"""
         try:
             data = json.loads(raw)
             return data if isinstance(data, dict) else {}
@@ -195,15 +207,6 @@ class MessageRouter:
 
     @staticmethod
     def _parse_timestamp(value: Any) -> datetime:
-        """
-        解析不同平台的时间字段。
-
-        支持：
-        - Unix 秒
-        - Unix 毫秒
-        - ISO 字符串
-        - 缺失时回退为 now
-        """
         if value in (None, ""):
             return datetime.now()
 
@@ -230,7 +233,6 @@ class MessageRouter:
     def _extract_feishu_attachments(
         content_payload: dict[str, Any], message: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """提取飞书附件信息。"""
         attachments: list[dict[str, Any]] = []
         for key in ("image_key", "file_key", "media_key"):
             if key in content_payload:
@@ -246,7 +248,6 @@ class MessageRouter:
 
     @staticmethod
     def _extract_telegram_attachments(message: dict[str, Any]) -> list[dict[str, Any]]:
-        """提取 Telegram 附件信息。"""
         attachments: list[dict[str, Any]] = []
         for key in ("photo", "document", "audio", "voice", "video", "animation", "location"):
             if key not in message:
@@ -260,15 +261,81 @@ class MessageRouter:
 
     @staticmethod
     def _telegram_reply_to(message: dict[str, Any]) -> str | None:
-        """提取 Telegram 被回复消息 ID。"""
         reply_to = message.get("reply_to_message", {})
         if not reply_to:
             return None
         reply_message_id = reply_to.get("message_id")
         return str(reply_message_id) if reply_message_id is not None else None
 
+    @staticmethod
+    def _detect_qq_event_type(message: dict[str, Any]) -> str | None:
+        author = message.get("author", {})
+        if not isinstance(author, dict):
+            return None
+
+        if "user_openid" in author:
+            return "C2C_MESSAGE_CREATE"
+        if "group_openid" in message and "member_openid" in author:
+            return "GROUP_AT_MESSAGE_CREATE"
+        if "guild_id" in message and "channel_id" in message:
+            if "src_guild_id" in message:
+                return "DIRECT_MESSAGE_CREATE"
+            return "AT_MESSAGE_CREATE"
+        return None
+
+    @staticmethod
+    def _qq_user_id(event_type: str, author: dict[str, Any]) -> str:
+        if event_type == "C2C_MESSAGE_CREATE":
+            value = author.get("user_openid")
+        elif event_type == "GROUP_AT_MESSAGE_CREATE":
+            value = author.get("member_openid")
+        else:
+            value = author.get("id")
+        return str(value or "unknown")
+
+    @staticmethod
+    def _qq_user_name(author: dict[str, Any], user_id: str) -> str:
+        value = author.get("username")
+        return str(value or user_id)
+
+    @staticmethod
+    def _qq_reply_to(message: dict[str, Any]) -> str | None:
+        reference = message.get("message_reference", {})
+        if not isinstance(reference, dict):
+            return None
+        value = reference.get("message_id")
+        return str(value) if value else None
+
+    @staticmethod
+    def _extract_qq_attachments(message: dict[str, Any]) -> list[dict[str, Any]]:
+        attachments = message.get("attachments", [])
+        if not isinstance(attachments, list):
+            return []
+
+        result: list[dict[str, Any]] = []
+        for item in attachments:
+            if not isinstance(item, dict):
+                continue
+
+            attachment: dict[str, Any] = {}
+            for key in (
+                "content_type",
+                "filename",
+                "height",
+                "width",
+                "size",
+                "url",
+                "voice_wav_url",
+                "asr_refer_text",
+            ):
+                if key in item:
+                    attachment[key] = item[key]
+
+            if attachment:
+                result.append(attachment)
+
+        return result
+
 
 def route_message(platform: str | Platform, payload: dict[str, Any]) -> UnifiedMessage | None:
-    """函数式入口，便于在脚本或后续 webhook 层直接调用。"""
     return MessageRouter.route(platform, payload)
-
