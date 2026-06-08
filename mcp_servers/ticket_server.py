@@ -66,13 +66,14 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="query_ticket",
-            description="查询工单信息",
+            description="查询当前用户的工单信息",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "ticket_id": {"type": "string", "description": "工单号（精确查询）"},
-                    "user_id": {"type": "string", "description": "当前用户 ID（用于归属校验或查询该用户工单）"},
+                    "user_id": {"type": "string", "description": "当前用户 ID（必填）"},
                 },
+                "required": ["user_id"],
             },
         ),
         Tool(
@@ -133,20 +134,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         elif name == "query_ticket":
             ticket_id = arguments.get("ticket_id")
-            user_id = arguments.get("user_id")
+            user_id = arguments["user_id"]
             if ticket_id:
                 row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
                 if not row:
                     result = {"error": f"未找到工单 {ticket_id}"}
-                elif user_id and row["user_id"] != user_id:
+                elif row["user_id"] != user_id:
                     result = {"error": "无权查看此工单"}
                 else:
                     result = dict(row)
-            elif user_id:
+            else:
                 rows = conn.execute("SELECT * FROM tickets WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
                 result = [dict(r) for r in rows]
-            else:
-                result = {"error": "请提供 ticket_id 或 user_id"}
 
         elif name == "update_ticket":
             ticket_id = arguments["ticket_id"]
