@@ -71,17 +71,18 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "ticket_id": {"type": "string", "description": "工单号（精确查询）"},
-                    "user_id": {"type": "string", "description": "用户 ID（查询该用户所有工单）"},
+                    "user_id": {"type": "string", "description": "当前用户 ID（用于归属校验或查询该用户工单）"},
                 },
             },
         ),
         Tool(
             name="update_ticket",
-            description="更新工单状态或添加备注",
+            description="更新工单状态或添加备注（仅限更新自己创建的工单）",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "ticket_id": {"type": "string", "description": "工单号"},
+                    "user_id": {"type": "string", "description": "当前用户 ID（用于归属校验）"},
                     "status": {
                         "type": "string",
                         "enum": ["open", "in_progress", "pending_user", "resolved", "closed"],
@@ -89,15 +90,16 @@ async def list_tools() -> list[Tool]:
                     },
                     "note": {"type": "string", "description": "备注信息"},
                 },
-                "required": ["ticket_id"],
+                "required": ["ticket_id", "user_id"],
             },
         ),
         Tool(
             name="list_tickets",
-            description="列出工单（可按状态筛选）",
+            description="列出当前用户的工单（可按状态筛选）",
             inputSchema={
                 "type": "object",
                 "properties": {
+                    "user_id": {"type": "string", "description": "当前用户 ID（必填）"},
                     "status": {
                         "type": "string",
                         "enum": ["open", "in_progress", "pending_user", "resolved", "closed"],
@@ -105,6 +107,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "limit": {"type": "integer", "description": "返回数量上限", "default": 20},
                 },
+                "required": ["user_id"],
             },
         ),
     ]
@@ -133,7 +136,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             user_id = arguments.get("user_id")
             if ticket_id:
                 row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
-                result = dict(row) if row else {"error": f"未找到工单 {ticket_id}"}
+                if not row:
+                    result = {"error": f"未找到工单 {ticket_id}"}
+                elif user_id and row["user_id"] != user_id:
+                    result = {"error": "无权查看此工单"}
+                else:
+                    result = dict(row)
             elif user_id:
                 rows = conn.execute("SELECT * FROM tickets WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
                 result = [dict(r) for r in rows]
@@ -142,32 +150,40 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         elif name == "update_ticket":
             ticket_id = arguments["ticket_id"]
-            updates = []
-            params = []
-            if "status" in arguments:
-                updates.append("status = ?")
-                params.append(arguments["status"])
-            if "note" in arguments:
-                updates.append("note = ?")
-                params.append(arguments["note"])
-            if updates:
-                updates.append("updated_at = ?")
-                params.append(now)
-                params.append(ticket_id)
-                conn.execute(f"UPDATE tickets SET {', '.join(updates)} WHERE id = ?", params)
-                conn.commit()
+            user_id = arguments.get("user_id")
             row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
-            result = dict(row) if row else {"error": f"未找到工单 {ticket_id}"}
+            if not row:
+                result = {"error": f"未找到工单 {ticket_id}"}
+            elif user_id and row["user_id"] != user_id:
+                result = {"error": "无权修改此工单"}
+            else:
+                updates = []
+                params = []
+                if "status" in arguments:
+                    updates.append("status = ?")
+                    params.append(arguments["status"])
+                if "note" in arguments:
+                    updates.append("note = ?")
+                    params.append(arguments["note"])
+                if updates:
+                    updates.append("updated_at = ?")
+                    params.append(now)
+                    params.append(ticket_id)
+                    conn.execute(f"UPDATE tickets SET {', '.join(updates)} WHERE id = ?", params)
+                    conn.commit()
+                row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+                result = dict(row)
 
         elif name == "list_tickets":
+            user_id = arguments["user_id"]
             limit = arguments.get("limit", 20)
             status = arguments.get("status")
             if status:
-                rows = conn.execute("SELECT * FROM tickets WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                                    (status, limit)).fetchall()
+                rows = conn.execute("SELECT * FROM tickets WHERE user_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?",
+                                    (user_id, status, limit)).fetchall()
             else:
-                rows = conn.execute("SELECT * FROM tickets ORDER BY created_at DESC LIMIT ?",
-                                    (limit,)).fetchall()
+                rows = conn.execute("SELECT * FROM tickets WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+                                    (user_id, limit)).fetchall()
             result = [dict(r) for r in rows]
 
         else:
